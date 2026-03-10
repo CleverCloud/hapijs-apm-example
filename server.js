@@ -3,7 +3,7 @@
 const config = require('./config/config.js');
 const forceHttps = require('hapi-require-https');
 const Hapi = require('@hapi/hapi');
-const logsToConsole = require('./logs/hapijs-logs-default-clevercloud.js');
+const HapiPino = require('hapi-pino');
 const statusCodes = require('./status-codes.js');
 
 const security = {
@@ -12,7 +12,7 @@ const security = {
     includeSubDomains: true,
   },
   xframe: 'deny',
-  xss: true,
+  xss: 'enabled',
   referrer: 'same-origin',
 };
 
@@ -30,7 +30,18 @@ async function createServer () {
   }
 
   await server.register([
-    logsToConsole,
+    {
+      plugin: HapiPino,
+      options: {
+        // Filter out Telegraf monitoring pings
+        ignoreFunc: (options, request) => {
+          return request.headers?.['x-clevercloud-monitoring'] === 'telegraf';
+        },
+        // Ignore HAProxy TCP health-check connection resets
+        ignoredEventTags: { log: ['ECONNRESET'], error: ['ECONNRESET'] },
+        logRequestComplete: true,
+      },
+    },
     statusCodes,
   ]);
 
